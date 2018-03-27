@@ -43,13 +43,14 @@ public:
 	virtual void write(void* buffer, int length);
 
   // Overrides from OPCDevice:
-  virtual bool matchConfiguration(const Value &config) override;
-  virtual void writeMessage(const OPC::Message &msg) override = 0;
-  virtual void writeMessage(Document &msg) override;
-  virtual void writeColorCorrection(const Value &color) override;
-  virtual void describe(Value &object, Allocator &alloc) override;
+  virtual bool matchConfiguration(const Value &config);
+  // Note: this must be re-declared here to avoid hiding it.
+  virtual void writeMessage(const OPC::Message &msg) = 0;
+  virtual void writeMessage(Document &msg);
+  virtual void writeColorCorrection(const Value &color);
+  virtual void describe(Value &object, Allocator &alloc);
 
-	const char *getTypeString() override { return mTypeString; }
+	const char *getTypeString() { return mTypeString; }
 
 protected:
 	struct timeval mTimestamp;

@@ -65,16 +65,16 @@ public:
     // Some drivers can't determine whether this is a supported device prior to open()
     virtual bool probeAfterOpening();
 
-    // Overrides from OPCDevice:
-    virtual bool matchConfiguration(const Value &config) override;
-    virtual void writeMessage(const OPC::Message &msg) override = 0;
-    virtual void writeMessage(Document &msg) override;
-    virtual void writeColorCorrection(const Value &color) override;
-    virtual void describe(Value &object, Allocator &alloc) override;
+    // Overloads from OPCDevice:
+    virtual bool matchConfiguration(const Value &config);
+    virtual void writeMessage(const OPC::Message &msg) = 0;
+    virtual void writeMessage(Document &msg);
+    virtual void writeColorCorrection(const Value &color);
+    virtual void describe(Value &object, Allocator &alloc);
 
     libusb_device *getDevice() { return mDevice; };
     const char *getSerial() { return mSerialString; }
-    const char *getTypeString() override { return mTypeString; }
+    const char *getTypeString() { return mTypeString; }
 
 protected:
     libusb_device *mDevice;
