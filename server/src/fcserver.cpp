@@ -409,9 +409,7 @@ bool FCServer::usbHotplugPoll()
         known_devices.erase(list[listItem]);
     }
     for (libusb_device* removed : known_devices) {
-        std::clog << "entering left\n";
         usbDeviceLeft(removed);
-        std::clog << "exited left\n";
     }
 
     mEventMutex.unlock();
