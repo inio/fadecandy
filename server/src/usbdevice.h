@@ -59,8 +59,13 @@ public:
     USBDevice(libusb_device *device, const char *type, bool verbose);
     virtual ~USBDevice();
 
+    // Must be opened before any other methods are called.
+    virtual int open() = 0;
+
+    // Some drivers can't determine whether this is a supported device prior to open()
+    virtual bool probeAfterOpening();
+
     // Overrides from OPCDevice:
-    virtual bool probeAfterOpening() override;
     virtual bool matchConfiguration(const Value &config) override;
     virtual void writeMessage(const OPC::Message &msg) override = 0;
     virtual void writeMessage(Document &msg) override;
@@ -68,7 +73,7 @@ public:
     virtual void describe(Value &object, Allocator &alloc) override;
 
     libusb_device *getDevice() { return mDevice; };
-    const char *getSerial() override { return mSerialString; }
+    const char *getSerial() { return mSerialString; }
     const char *getTypeString() override { return mTypeString; }
 
 protected:

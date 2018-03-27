@@ -26,15 +26,13 @@
 
 #include "rapidjson/document.h"
 #include "opc.h"
+#include "opcdevice.h"
 #include <string>
 #include <libusb.h> // Also brings in gettimeofday() in a portable way
 
-class SPIDevice
+class SPIDevice : public OPCDevice
 {
 public:
-	typedef rapidjson::Value Value;
-	typedef rapidjson::Document Document;
-	typedef rapidjson::MemoryPoolAllocator<> Allocator;
 
 	SPIDevice(const char *type, bool verbose);
 	virtual ~SPIDevice();
@@ -44,27 +42,14 @@ public:
 
 	virtual void write(void* buffer, int length);
 
-	// Check a configuration. Does it describe this device?
-	virtual bool matchConfiguration(const Value &config);
+  // Overrides from OPCDevice:
+  virtual bool matchConfiguration(const Value &config) override;
+  virtual void writeMessage(const OPC::Message &msg) override = 0;
+  virtual void writeMessage(Document &msg) override;
+  virtual void writeColorCorrection(const Value &color) override;
+  virtual void describe(Value &object, Allocator &alloc) override;
 
-	// Load a matching configuration
-	virtual void loadConfiguration(const Value &config) = 0;
-
-	// Handle an incoming OPC message
-	virtual void writeMessage(const OPC::Message &msg) = 0;
-
-	// Handle a device-specific JSON message
-	virtual void writeMessage(Document &msg);
-
-	// Write color LUT from parsed JSON
-	virtual void writeColorCorrection(const Value &color);
-
-	// Describe this device by adding keys to a JSON object
-	virtual void describe(Value &object, Allocator &alloc);
-
-	virtual std::string getName() = 0;
-
-	const char *getTypeString() { return mTypeString; }
+	const char *getTypeString() override { return mTypeString; }
 
 protected:
 	struct timeval mTimestamp;

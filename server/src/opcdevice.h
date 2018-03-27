@@ -37,12 +37,6 @@ public:
 
     virtual ~OPCDevice() {}
 
-    // Must be opened before any other methods are called.
-    virtual int open() = 0;
-
-    // Some drivers can't determine whether this is a supported device prior to open()
-    virtual bool probeAfterOpening() = 0;
-
     // Check a configuration. Does it describe this device?
     virtual bool matchConfiguration(const Value &config) = 0;
 
@@ -66,6 +60,5 @@ public:
 
     virtual std::string getName() = 0;
 
-    virtual const char *getSerial() = 0;
     virtual const char *getTypeString() = 0;
 };
