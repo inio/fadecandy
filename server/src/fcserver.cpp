@@ -1,18 +1,18 @@
 /*
  * Open Pixel Control server for Fadecandy
- * 
+ *
  * Copyright (c) 2013 Micah Elizabeth Scott
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
  * the Software without restriction, including without limitation the rights to
  * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
  * the Software, and to permit persons to whom the Software is furnished to do so,
  * subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
  * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
@@ -29,6 +29,8 @@
 #include "enttecdmxdevice.h"
 #include <ctype.h>
 #include <iostream>
+#include <set>
+#include <algorithm>
 
 #ifdef FCSERVER_HAS_WIRINGPI
 #include <wiringPi.h>
@@ -39,7 +41,7 @@ FCServer::FCServer(rapidjson::Document &config)
       mListen(config["listen"]),
       mRelay(config["relay"]),
       mColor(config["color"]),
-      mDevices(config["devices"]),
+      mDeviceConfigs(config["devices"]),
       mVerbose(config["verbose"].IsTrue()),
       mPollForDevicesOnce(false),
       mTcpNetServer(cbOpcMessage, cbJsonMessage, this, mVerbose),
@@ -95,7 +97,7 @@ FCServer::FCServer(rapidjson::Document &config)
      * Minimal validation on 'devices'
      */
 
-    if (!mDevices.IsArray()) {
+    if (!mDeviceConfigs.IsArray()) {
         mError << "The required 'devices' configuration key must be an array.\n";
     }
 }
@@ -149,15 +151,10 @@ void FCServer::cbOpcMessage(OPC::Message &msg, void *context)
     FCServer *self = static_cast<FCServer*>(context);
     self->mEventMutex.lock();
 
-    for (std::vector<USBDevice*>::iterator i = self->mUSBDevices.begin(), e = self->mUSBDevices.end(); i != e; ++i) {
-        USBDevice *dev = *i;
+    for (std::vector<OPCDevice*>::iterator i = self->mDevices.begin(), e = self->mDevices.end(); i != e; ++i) {
+        OPCDevice *dev = *i;
         dev->writeMessage(msg);
     }
-
-	for (std::vector<SPIDevice*>::iterator i = self->mSPIDevices.begin(), e = self->mSPIDevices.end(); i != e; ++i) {
-		SPIDevice *dev = *i;
-		dev->writeMessage(msg);
-	}
 
     self->mEventMutex.unlock();
 
@@ -232,13 +229,14 @@ void FCServer::usbDeviceArrived(libusb_device *device)
         return;
     }
 
-    for (unsigned i = 0; i < mDevices.Size(); ++i) {
-        if (dev->matchConfiguration(mDevices[i])) {
+    for (unsigned i = 0; i < mDeviceConfigs.Size(); ++i) {
+        if (dev->matchConfiguration(mDeviceConfigs[i])) {
             // Found a matching configuration for this device. We're keeping it!
 
-            dev->loadConfiguration(mDevices[i]);
+            dev->loadConfiguration(mDeviceConfigs[i]);
             dev->writeColorCorrection(mColor);
-            mUSBDevices.push_back(dev);
+            mDevices.push_back(dev);
+            mUSBDeviceMap[dev->getDevice()] = dev;
 
             if (mVerbose) {
                 std::clog << "USB device " << dev->getName() << " attached.\n";
@@ -259,23 +257,19 @@ void FCServer::usbDeviceLeft(libusb_device *device)
     /*
      * Is this a device we recognize? If so, delete it.
      */
-
-    for (std::vector<USBDevice*>::iterator i = mUSBDevices.begin(), e = mUSBDevices.end(); i != e; ++i) {
-        USBDevice *dev = *i;
-        if (dev->getDevice() == device) {
-            usbDeviceLeft(i);
-            break;
-        }
+    if (mUSBDeviceMap.count(device) > 0) {
+      usbDeviceLeft(mUSBDeviceMap[device]);
     }
 }
 
-void FCServer::usbDeviceLeft(std::vector<USBDevice*>::iterator iter)
+void FCServer::usbDeviceLeft(USBDevice* dev)
 {
-    USBDevice *dev = *iter;
     if (mVerbose) {
         std::clog << "USB device " << dev->getName() << " removed.\n";
     }
-    mUSBDevices.erase(iter);
+    mUSBDeviceMap.erase(dev->getDevice());
+
+    mDevices.erase(std::remove(mDevices.begin(), mDevices.end(), dev), mDevices.end());
     delete dev;
     jsonConnectedDevicesChanged();
 }
@@ -286,8 +280,8 @@ bool FCServer::startSPI()
 	wiringPiSetup();
 #endif
 
-	for (unsigned i = 0; i < mDevices.Size(); ++i) {
-		const Value &device = mDevices[i];
+	for (unsigned i = 0; i < mDeviceConfigs.Size(); ++i) {
+		const Value &device = mDeviceConfigs[i];
 
 		const Value &vtype = device["type"];
 		const Value &vport = device["port"];
@@ -324,13 +318,13 @@ void FCServer::openAPA102SPIDevice(uint32_t port, int numLights)
 		return;
 	}
 
-	for (unsigned i = 0; i < mDevices.Size(); ++i) {
-		if (dev->matchConfiguration(mDevices[i])) {
+	for (unsigned i = 0; i < mDeviceConfigs.Size(); ++i) {
+		if (dev->matchConfiguration(mDeviceConfigs[i])) {
 			// Found a matching configuration for this device. We're keeping it!
 
-			dev->loadConfiguration(mDevices[i]);
+			dev->loadConfiguration(mDeviceConfigs[i]);
 			dev->writeColorCorrection(mColor);
-			mSPIDevices.push_back(dev);
+			mDevices.push_back(dev);
 
 			if (mVerbose) {
 				std::clog << "SPI device " << dev->getName() << " attached.\n";
@@ -362,8 +356,8 @@ void FCServer::mainLoop()
 
         // Flush completed transfers
         mEventMutex.lock();
-        for (std::vector<USBDevice*>::iterator i = mUSBDevices.begin(), e = mUSBDevices.end(); i != e; ++i) {
-            USBDevice *dev = *i;
+        for (std::vector<OPCDevice*>::iterator i = mDevices.begin(), e = mDevices.end(); i != e; ++i) {
+            OPCDevice *dev = *i;
             dev->flush();
         }
         mEventMutex.unlock();
@@ -398,14 +392,7 @@ bool FCServer::usbHotplugPoll()
 
     // Look for devices that were added
     for (ssize_t listItem = 0; listItem < listSize; ++listItem) {
-        bool isNew = true;
-
-        for (std::vector<USBDevice*>::iterator i = mUSBDevices.begin(), e = mUSBDevices.end(); i != e; ++i) {
-            USBDevice *dev = *i;
-            if (dev->getDevice() == list[listItem]) {
-                isNew = false;
-            }
-        }
+        bool isNew = mUSBDeviceMap.count(list[listItem]) > 0;
 
         if (isNew) {
             usbDeviceArrived(list[listItem]);
@@ -413,20 +400,17 @@ bool FCServer::usbHotplugPoll()
     }
 
     // Look for devices that were removed
-    for (std::vector<USBDevice*>::iterator i = mUSBDevices.begin(), e = mUSBDevices.end(); i != e; ++i) {
-        USBDevice *dev = *i;
-        libusb_device *usbdev = dev->getDevice();
-        bool isRemoved = true;
-
-        for (ssize_t listItem = 0; listItem < listSize; ++listItem) {
-            if (list[listItem] == usbdev) {
-                isRemoved = false;
-            }
-        }
-
-        if (isRemoved) {
-            usbDeviceLeft(i);
-        }
+    std::set<libusb_device*> known_devices;
+    for(USBDeviceMap::iterator i = mUSBDeviceMap.begin(), e = mUSBDeviceMap.end(); i != e; ++i) {
+      known_devices.insert(i->first);
+    }
+    for (ssize_t listItem = 0; listItem < listSize; ++listItem) {
+        known_devices.erase(list[listItem]);
+    }
+    for (libusb_device* removed : known_devices) {
+        std::clog << "entering left\n";
+        usbDeviceLeft(removed);
+        std::clog << "exited left\n";
     }
 
     mEventMutex.unlock();
@@ -491,26 +475,16 @@ void FCServer::jsonDeviceMessage(rapidjson::Document &message)
     bool matched = false;
 
     if (device.IsObject()) {
-        for (unsigned i = 0; i != mUSBDevices.size(); i++) {
-            USBDevice *usbDev = mUSBDevices[i];
+        for (unsigned i = 0; i != mDevices.size(); i++) {
+            OPCDevice *dev = mDevices[i];
 
-            if (usbDev->matchConfiguration(device)) {
+            if (dev->matchConfiguration(device)) {
                 matched = true;
-                usbDev->writeMessage(message);
+                dev->writeMessage(message);
                 if (message.HasMember("error"))
                     break;
             }
         }
-		for (unsigned i = 0; i != mSPIDevices.size(); i++) {
-			SPIDevice *spiDev = mSPIDevices[i];
-
-			if (spiDev->matchConfiguration(device)) {
-				matched = true;
-				spiDev->writeMessage(message);
-				if (message.HasMember("error"))
-					break;
-			}
-		}
     }
 
     if (!matched) {
@@ -523,17 +497,11 @@ void FCServer::jsonListConnectedDevices(rapidjson::Document &message)
     message.AddMember("devices", rapidjson::kArrayType, message.GetAllocator());
     Value &list = message["devices"];
 
-    for (unsigned i = 0; i != mUSBDevices.size(); i++) {
-        USBDevice *usbDev = mUSBDevices[i];
+    for (unsigned i = 0; i != mDevices.size(); i++) {
+        OPCDevice *dev = mDevices[i];
         list.PushBack(rapidjson::kObjectType, message.GetAllocator());
-        mUSBDevices[i]->describe(list[i], message.GetAllocator());
+        dev->describe(list[i], message.GetAllocator());
     }
-
-	for (unsigned i = 0; i != mSPIDevices.size(); i++) {
-		SPIDevice *spiDev = mSPIDevices[i];
-		list.PushBack(rapidjson::kObjectType, message.GetAllocator());
-		mSPIDevices[i]->describe(list[i], message.GetAllocator());
-	}
 }
 
 void FCServer::jsonServerInfo(rapidjson::Document &message)
