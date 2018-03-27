@@ -258,7 +258,7 @@ void FCServer::usbDeviceLeft(libusb_device *device)
      * Is this a device we recognize? If so, delete it.
      */
     if (mUSBDeviceMap.count(device) > 0) {
-      usbDeviceLeft(mUSBDeviceMap[device]);
+        usbDeviceLeft(mUSBDeviceMap[device]);
     }
 }
 
@@ -393,7 +393,7 @@ bool FCServer::usbHotplugPoll()
 
     // Look for devices that were added
     for (ssize_t listItem = 0; listItem < listSize; ++listItem) {
-        bool isNew = mUSBDeviceMap.count(list[listItem]) > 0;
+        bool isNew = mUSBDeviceMap.count(list[listItem]) == 0;
 
         if (isNew) {
             usbDeviceArrived(list[listItem]);
