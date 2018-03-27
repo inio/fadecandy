@@ -34,30 +34,30 @@ class SPIDevice : public OPCDevice
 {
 public:
 
-	SPIDevice(const char *type, bool verbose);
-	virtual ~SPIDevice();
+    SPIDevice(const char *type, bool verbose);
+    virtual ~SPIDevice();
 
-	// Must be opened before any other methods are called.
-	virtual int open(uint32_t port);
+    // Must be opened before any other methods are called.
+    virtual int open(uint32_t port);
 
-	virtual void write(void* buffer, int length);
+    virtual void write(void* buffer, int length);
 
-  // Overrides from OPCDevice:
-  virtual bool matchConfiguration(const Value &config);
-  // Note: this must be re-declared here to avoid hiding it.
-  virtual void writeMessage(const OPC::Message &msg) = 0;
-  virtual void writeMessage(Document &msg);
-  virtual void writeColorCorrection(const Value &color);
-  virtual void describe(Value &object, Allocator &alloc);
+    // Overrides from OPCDevice:
+    virtual bool matchConfiguration(const Value &config);
+    // Note: this must be re-declared here to avoid hiding it.
+    virtual void writeMessage(const OPC::Message &msg) = 0;
+    virtual void writeMessage(Document &msg);
+    virtual void writeColorCorrection(const Value &color);
+    virtual void describe(Value &object, Allocator &alloc);
 
-	const char *getTypeString() { return mTypeString; }
+    const char *getTypeString() { return mTypeString; }
 
 protected:
-	struct timeval mTimestamp;
-	const char *mTypeString;
-	bool mVerbose;
-	uint32_t mPort;
+    struct timeval mTimestamp;
+    const char *mTypeString;
+    bool mVerbose;
+    uint32_t mPort;
 
-	// Utilities
-	const Value *findConfigMap(const Value &config);
+    // Utilities
+    const Value *findConfigMap(const Value &config);
 };

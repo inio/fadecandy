@@ -83,8 +83,8 @@ private:
 
     static void usbHotplugThreadFunc(void *arg);
 
-	bool startSPI();
-	void openAPA102SPIDevice(uint32_t port, int numLights);
+    bool startSPI();
+    void openAPA102SPIDevice(uint32_t port, int numLights);
 
     // JSON event broadcasters
     void jsonConnectedDevicesChanged();

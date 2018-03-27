@@ -65,8 +65,9 @@ public:
     // Some drivers can't determine whether this is a supported device prior to open()
     virtual bool probeAfterOpening();
 
-    // Overloads from OPCDevice:
+    // Overrides from OPCDevice:
     virtual bool matchConfiguration(const Value &config);
+    // Note: this must be re-declared here to avoid hiding it.
     virtual void writeMessage(const OPC::Message &msg) = 0;
     virtual void writeMessage(Document &msg);
     virtual void writeColorCorrection(const Value &color);

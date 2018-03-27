@@ -277,62 +277,63 @@ void FCServer::usbDeviceLeft(USBDevice* dev)
 bool FCServer::startSPI()
 {
 #ifdef FCSERVER_HAS_WIRINGPI
-	wiringPiSetup();
+    wiringPiSetup();
 #endif
 
-	for (unsigned i = 0; i < mDeviceConfigs.Size(); ++i) {
-		const Value &device = mDeviceConfigs[i];
 
-		const Value &vtype = device["type"];
-		const Value &vport = device["port"];
-		const Value &vnumLights = device["numLights"];
+    for (unsigned i = 0; i < mDeviceConfigs.Size(); ++i) {
+        const Value &device = mDeviceConfigs[i];
 
-		if (vtype.IsNull() || (!vtype.IsString() || strcmp(vtype.GetString(), APA102SPIDevice::DEVICE_TYPE))) {
-			continue;
-		}
+        const Value &vtype = device["type"];
+        const Value &vport = device["port"];
+        const Value &vnumLights = device["numLights"];
 
-		if (vport.IsNull() || (!vport.IsUint())) {
-			continue;
-		}
+        if (vtype.IsNull() || (!vtype.IsString() || strcmp(vtype.GetString(), APA102SPIDevice::DEVICE_TYPE))) {
+            continue;
+        }
 
-		if (vnumLights.IsNull() || (!vnumLights.IsUint())) {
-			continue;
-		}
+        if (vport.IsNull() || (!vport.IsUint())) {
+            continue;
+        }
 
-		openAPA102SPIDevice(vport.GetUint(), vnumLights.GetUint());
-	}
+        if (vnumLights.IsNull() || (!vnumLights.IsUint())) {
+            continue;
+        }
 
-	return true;
+        openAPA102SPIDevice(vport.GetUint(), vnumLights.GetUint());
+    }
+
+    return true;
 }
 
 void FCServer::openAPA102SPIDevice(uint32_t port, int numLights)
 {
-	APA102SPIDevice* dev = new APA102SPIDevice(numLights, mVerbose);
+    APA102SPIDevice* dev = new APA102SPIDevice(numLights, mVerbose);
 
-	int r = dev->open(port);
-	if (r < 0) {
-		if (mVerbose) {
-			std::clog << "Error opening " << dev->getName() << "\n";
-		}
-		delete dev;
-		return;
-	}
+    int r = dev->open(port);
+    if (r < 0) {
+        if (mVerbose) {
+            std::clog << "Error opening " << dev->getName() << "\n";
+        }
+        delete dev;
+        return;
+    }
 
-	for (unsigned i = 0; i < mDeviceConfigs.Size(); ++i) {
-		if (dev->matchConfiguration(mDeviceConfigs[i])) {
-			// Found a matching configuration for this device. We're keeping it!
+    for (unsigned i = 0; i < mDeviceConfigs.Size(); ++i) {
+        if (dev->matchConfiguration(mDeviceConfigs[i])) {
+            // Found a matching configuration for this device. We're keeping it!
 
-			dev->loadConfiguration(mDeviceConfigs[i]);
-			dev->writeColorCorrection(mColor);
-			mDevices.push_back(dev);
+            dev->loadConfiguration(mDeviceConfigs[i]);
+            dev->writeColorCorrection(mColor);
+            mDevices.push_back(dev);
 
-			if (mVerbose) {
-				std::clog << "SPI device " << dev->getName() << " attached.\n";
-			}
-			jsonConnectedDevicesChanged();
-			return;
-		}
-	}
+            if (mVerbose) {
+                std::clog << "SPI device " << dev->getName() << " attached.\n";
+            }
+            jsonConnectedDevicesChanged();
+            return;
+        }
+    }
 }
 
 void FCServer::mainLoop()
